@@ -7,7 +7,7 @@ edition = "2021"
 colog = "1.3.0"
 log = "0.4.22"
 config = "0.14.0"
-tokio = { version = "1.40.0", features = ["macros", "full"] }
+tokio = { version = "1.40.0", features = ["full"] }
 nusb = "0.1.10"
 tokio-serial = { version = "5.4.4"}
 gcode = "0.6.1"

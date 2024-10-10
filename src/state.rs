@@ -12,8 +12,22 @@ impl <T> Point3<T> {
     pub fn new(x: T, y: T, z: T) -> Self {
         Self{x, y, z}
     }
+    pub fn apply(self, apply_f: impl Fn(T) -> T) -> Self {
+        Self{x: apply_f(self.x), y: apply_f(self.y), z: apply_f(self.z)}
+    }
+    pub fn apply_other(self, other: Self, apply_f: impl Fn(T, T) -> T) -> Self {
+        Self{x: apply_f(self.x, other.x), y: apply_f(self.y, other.y), z: apply_f(self.z, other.z)}
+    }
 }
 
+#[allow(dead_code)]
+impl <T> Point3<T> where T : Clone {
+    pub fn new_uniform(i: T) -> Self {
+        Self{x: i.clone(), y: i.clone(), z: i}
+    }
+}
+
+#[allow(dead_code)]
 impl Point3<i32> {
     pub fn to_f32(self) -> Point3<f32> {
         Point3::new(self.x as f32, self.y as f32, self.z as f32)
@@ -24,15 +38,19 @@ impl Point3<i64> {
         Point3::new(self.x as f32, self.y as f32, self.z as f32)
     }
 }
+#[allow(dead_code)]
 impl Point3<f32> {
     pub fn add(self, other: Self) -> Self {
-        Self{x: self.x + other.x, y: self.y + other.y, z: self.z + other.z}
+        self.apply_other(other, |s, o| s + o)
     }
     pub fn sub(self, other: Self) -> Self {
-        Self{x: self.x - other.x, y: self.y - other.y, z: self.z - other.z}
+        self.apply_other(other, |s, o| s - o)
     }
     pub fn mul(self, other: Self) -> Self {
-        Self{x: self.x * other.x, y: self.y * other.y, z: self.z * other.z}
+        self.apply_other(other, |s, o| s * o)
+    }
+    pub fn square(self) -> Self {
+        self.apply(|v| v * v)
     }
     pub fn sum(&self) -> f32 {
         self.x + self. y + self.z
@@ -206,9 +224,15 @@ pub enum RemoteEvent {
 pub struct ParseCNCEventError;
 impl FromStr for CncEvent {
     type Err = ParseCNCEventError;
-    fn from_str(_input: &str) -> Result<Self, Self::Err> {
-        // todo
-        Ok(CncEvent::Unknown)
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        if input.to_lowercase().contains("ok") {
+            Ok(CncEvent::Ok)
+        }
+        else {
+            warn!("unrecognized input: {}", input);
+            // todo
+            Ok(CncEvent::Unknown)
+        }
     }
 }
 

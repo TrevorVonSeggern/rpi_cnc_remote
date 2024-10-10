@@ -39,10 +39,10 @@ pub async fn uart_read_write<T>(mut port_rx: Receiver<SerialPortInfo>, mut write
             continue;
         }
 
+        info!("opening port {}. baud:{}", pref.path, pref.baud);
         let mut port = tokio_serial::new(pref.path.clone(), pref.baud)
             .open_native_async().expect("Unable to open serial port.");
         loop {
-            //info!("uart loop.");
             if let Ok(next_port) = port_rx.try_recv() {
                 port_info = Some(next_port);
                 let _ = port.shutdown().await;
@@ -58,6 +58,7 @@ pub async fn uart_read_write<T>(mut port_rx: Receiver<SerialPortInfo>, mut write
                 if let Some(nl_index) = nl {
                     let line = from_utf8(&read_buf[0..nl_index]);
                     if let Ok(line) = line {
+                        info!("port read: {}", line);
                         let event = line.parse::<T>();
                         if let Ok(event) = event {
                             let trysend = tx_remote_events.send(event);
@@ -71,6 +72,7 @@ pub async fn uart_read_write<T>(mut port_rx: Receiver<SerialPortInfo>, mut write
             }
 
             while let Ok(message) = write_channel.try_recv() {
+                info!("port write: {}", message);
                 port.write(&message.as_bytes()).await.unwrap();
                 if let Some(lchar) = message.chars().last() {
                     if lchar != '\n' {
@@ -95,12 +97,13 @@ pub async fn port_info_from_config(prefix: &str, config: &Config, ch: &Sender<Se
 }
 
 
+#[allow(dead_code)]
 #[allow(unused_assignments)]
 pub async fn fake_cnc_port(_port_rx: Receiver<SerialPortInfo>, mut write_channel: Receiver<String>, tx_remote_events: broadcast::Sender<CncEvent>) {
     let mut gcode_processing = VecDeque::<String>::new();
     gcode_processing.reserve(10);
     let mut is_absolute = true;
-    let mut cnc_position: Point3<f32> = Default::default();
+    //let mut cnc_position: Point3<f32> = Default::default();
     let mut target_position: Point3<f32> = Default::default();
     let mut busy_until: Option<Instant> = None;
     let max_feed_rate = 300 /* mm/sec */ as f32;
@@ -128,13 +131,12 @@ pub async fn fake_cnc_port(_port_rx: Receiver<SerialPortInfo>, mut write_channel
         } else if busy_until.is_some() {
             // finished moving machine.
             busy_until = None; 
-            cnc_position = target_position.clone();
-        }
-        if let Some(code) = gcode_processing.pop_front() {
+            //cnc_position = target_position.clone();
             if gcode_processing.len() == 5 {
                 let _ = tx_remote_events.send(CncEvent::Ok);
             }
-            info!("running command: {}", code);
+        }
+        if let Some(code) = gcode_processing.pop_front() {
             busy_until = Some(Instant::now());
             let code_parts:Vec<_> = gcode::parse(&code).collect();
             for command in code_parts {
@@ -157,6 +159,7 @@ pub async fn fake_cnc_port(_port_rx: Receiver<SerialPortInfo>, mut write_channel
                         let travel_time = Duration::from_secs_f32(distance / max_feed_rate);
                         busy_until = busy_until.unwrap().checked_add(travel_time);
                         target_position = next_target;
+                        info!("running command: {}; time: {}", code, travel_time.as_secs_f32());
                     },
                     _ => { warn!("unknown gcode command: {}", command); },
                 }
